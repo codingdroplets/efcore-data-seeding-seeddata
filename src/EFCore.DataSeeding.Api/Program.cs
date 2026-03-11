@@ -20,7 +20,14 @@ builder.Services.AddScoped<IDataSeeder, ProductSeeder>();
 builder.Services.AddScoped<DatabaseSeeder>();
 
 // ── API / Swagger ─────────────────────────────────────────────────────────────
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Prevent infinite cycles from bidirectional navigation properties
+        // (e.g. Product → Category → Products → Product → ...)
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {

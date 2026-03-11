@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace EFCore.DataSeeding.Api.Models;
 
 /// <summary>
@@ -13,6 +15,7 @@ public class Category
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
 
-    // Navigation property
+    // Navigation property — JsonIgnore prevents Product → Category → Products infinite cycle
+    [JsonIgnore]
     public ICollection<Product> Products { get; set; } = new List<Product>();
 }
