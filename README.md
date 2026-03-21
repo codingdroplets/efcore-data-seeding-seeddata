@@ -1,20 +1,76 @@
 # EF Core Data Seeding: Production-Ready Patterns for .NET
 
-> Practical code samples for **Advanced Data Seeding Strategies in Entity Framework Core** — covering both model-based `HasData` seeding and custom runtime seeders with full idempotency guards.
+> **Two battle-tested seeding strategies in one runnable sample** — Model-based `HasData` for static reference data and custom runtime seeders with full idempotency guards for dynamic datasets.
 
-[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![EF Core](https://img.shields.io/badge/EF%20Core-10.0-512BD4?logo=dotnet)](https://learn.microsoft.com/en-us/ef/core/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Visit CodingDroplets](https://img.shields.io/badge/Website-codingdroplets.com-blue?style=flat&logo=google-chrome&logoColor=white)](https://codingdroplets.com/)
+[![YouTube](https://img.shields.io/badge/YouTube-CodingDroplets-red?style=flat&logo=youtube&logoColor=white)](https://www.youtube.com/@CodingDroplets)
+[![Patreon](https://img.shields.io/badge/Patreon-Support%20Us-orange?style=flat&logo=patreon&logoColor=white)](https://www.patreon.com/CodingDroplets)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support%20Us-yellow?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/codingdroplets)
+[![GitHub](https://img.shields.io/badge/GitHub-codingdroplets-black?style=flat&logo=github&logoColor=white)](http://github.com/codingdroplets/)
 
 ---
 
-## 🚀 What You'll Learn
+## 🚀 Support the Channel — Join on Patreon
 
-This repository demonstrates two production-ready EF Core data seeding strategies:
+If this sample saved you time, consider joining our Patreon community.
+You'll get **exclusive .NET tutorials, premium code samples, and early access** to new content — all for the price of a coffee.
+
+👉 **[Join CodingDroplets on Patreon](https://www.patreon.com/CodingDroplets)**
+
+Prefer a one-time tip? [Buy us a coffee ☕](https://buymeacoffee.com/codingdroplets)
+
+---
+
+## 🎯 What You'll Learn
+
+- How to use **model-based `HasData`** seeding for static reference data (roles, categories, lookup tables)
+- How to build **custom runtime seeders** with `IDataSeeder` for dynamic or large datasets
+- How to write **idempotency guards** so seeders are safe to run on every startup
+- How to **orchestrate multiple seeders** in a controlled order with `DatabaseSeeder`
+- How to switch from **InMemory to SQL Server** with a two-line change
+
+---
+
+## 📋 Seeding Strategies Compared
 
 | Strategy | Best For | Pros | Cons |
 |---|---|---|---|
 | **Model-based `HasData`** | Static reference data (lookup tables, roles, categories) | Migrations-aware, zero startup overhead, deterministic | Hard-coded IDs required; large datasets inflate migration files |
-| **Custom Runtime Seeders** | Dynamic/computed data, large datasets, external source data | Full C# expressiveness, no migration bloat, DB-generated IDs | Runs at startup, must guard against duplicates |
+| **Custom Runtime Seeders** | Dynamic/computed data, large datasets, external source data | Full C# expressiveness, no migration bloat, DB-generated IDs | Runs at startup; must guard against duplicates |
+
+---
+
+## 🗺️ Architecture Overview
+
+```
+App Startup (Program.cs)
+        │
+        ▼
+┌───────────────────────────────────────────────────┐
+│               DatabaseSeeder                      │
+│  Orchestrates all IDataSeeder implementations     │
+│  in order (Order property)                        │
+│                                                   │
+│  ┌──────────────────────────────────────────────┐ │
+│  │  Strategy 1: AppDbContext.OnModelCreating    │ │
+│  │  modelBuilder.Entity<T>().HasData(...)       │ │
+│  │  → Applied by EF migrations / EnsureCreated  │ │
+│  └──────────────────────────────────────────────┘ │
+│                                                   │
+│  ┌──────────────────────────────────────────────┐ │
+│  │  Strategy 2: ProductSeeder : IDataSeeder     │ │
+│  │  → Guard: AnyAsync() check before inserting  │ │
+│  │  → Resolves FK by slug (no hard-coded IDs)   │ │
+│  │  → SaveChangesAsync()                        │ │
+│  └──────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────┘
+        │
+        ▼
+  Database ready with seeded reference + product data
+```
 
 ---
 
@@ -47,33 +103,33 @@ efcore-data-seeding-seeddata/
 
 ---
 
+## 🛠️ Prerequisites
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (or .NET 8/9 — update `TargetFramework` in `.csproj`)
+- Any IDE: Visual Studio 2022+, VS Code, or JetBrains Rider
+
+---
+
 ## ⚡ Quick Start
 
-### Prerequisites
-- [.NET 10 SDK](https://dotnet.microsoft.com/download) (or .NET 8/9 — update `TargetFramework` in `.csproj`)
-
-### Run Locally (In-Memory Database)
-
 ```bash
+# Clone the repo
 git clone https://github.com/codingdroplets/efcore-data-seeding-seeddata.git
 cd efcore-data-seeding-seeddata
 
+# Run (uses InMemory database — no SQL Server setup needed)
 dotnet run --project src/EFCore.DataSeeding.Api
-```
 
-Open Swagger UI: **https://localhost:{port}/swagger**
-
-### Run Tests
-
-```bash
-dotnet test -c Release
+# Open Swagger UI → https://localhost:{port}/swagger
 ```
 
 ---
 
-## 🗄️ Strategy 1: Model-Based `HasData` Seeding
+## 🔧 How It Works
 
-Configured inside `OnModelCreating` in `AppDbContext.cs`. EF Core applies this data through migrations (or `EnsureCreated` for InMemory).
+### Strategy 1 — Model-Based `HasData` (Static Reference Data)
+
+Configured inside `OnModelCreating` in `AppDbContext.cs`. Applied automatically by EF Core on `EnsureCreated` or migration:
 
 ```csharp
 modelBuilder.Entity<Category>().HasData(
@@ -83,13 +139,11 @@ modelBuilder.Entity<Category>().HasData(
 );
 ```
 
-> ⚠️ **Important:** `HasData` requires hard-coded primary keys. Shadow properties and navigation properties are not supported — use flat scalar values only.
+> ⚠️ **Important:** `HasData` requires hard-coded primary keys. Navigation properties are not supported — use flat scalar values only.
 
----
+### Strategy 2 — Custom Runtime Seeder (Dynamic Data)
 
-## ⚙️ Strategy 2: Custom Runtime Seeder
-
-`ProductSeeder` implements `IDataSeeder` and is called at startup by `DatabaseSeeder`. It includes an **idempotency guard** so it is safe to run on every startup.
+`ProductSeeder` implements `IDataSeeder` and is called at startup. It uses an **idempotency guard** so it is safe to run on every startup:
 
 ```csharp
 public async Task SeedAsync(CancellationToken cancellationToken = default)
@@ -100,7 +154,7 @@ public async Task SeedAsync(CancellationToken cancellationToken = default)
 
     if (alreadySeeded) return;
 
-    // Fetch FK by slug — no hard-coded IDs
+    // Resolve FK by slug — no hard-coded IDs
     var electronics = await _db.Categories
         .FirstAsync(c => c.Slug == "electronics", cancellationToken);
 
@@ -114,9 +168,7 @@ public async Task SeedAsync(CancellationToken cancellationToken = default)
 }
 ```
 
-### Registering Seeders
-
-In `Program.cs`:
+### Register Seeders in Program.cs
 
 ```csharp
 builder.Services.AddScoped<IDataSeeder, ProductSeeder>();
@@ -136,19 +188,18 @@ The sample uses InMemory for zero-friction local runs. To use SQL Server:
    builder.Services.AddDbContext<AppDbContext>(options =>
        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
    ```
-
-2. Replace `EnsureCreatedAsync()` with:
-   ```csharp
-   await db.Database.MigrateAsync();
-   ```
-
+2. Replace `EnsureCreatedAsync()` with `MigrateAsync()`.
 3. Add your connection string to `appsettings.json`.
 
 ---
 
-## 🧪 Test Coverage
+## 🧪 Running Tests
 
-| Test | Strategy |
+```bash
+dotnet test -c Release
+```
+
+| Test | Strategy Covered |
 |---|---|
 | `HasData_Seeds_ThreeCategories` | Strategy 1 |
 | `HasData_Seeds_ElectronicsCategory_WithCorrectSlug` | Strategy 1 |
@@ -160,18 +211,28 @@ The sample uses InMemory for zero-friction local runs. To use SQL Server:
 
 ---
 
-## 📚 Further Reading
+## 📚 References
 
 - [EF Core — Data Seeding (Microsoft Docs)](https://learn.microsoft.com/en-us/ef/core/modeling/data-seeding)
 - [EF Core — Migrations Overview](https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/)
-
----
-
-Visit Now: https://codingdroplets.com  
-Join our Patreon to Learn & Level Up: https://www.patreon.com/CodingDroplets
+- [EF Core — InMemory Database Provider](https://learn.microsoft.com/en-us/ef/core/providers/in-memory/)
 
 ---
 
 ## 📄 License
 
-MIT © [Coding Droplets](https://codingdroplets.com)
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+## 🔗 Connect with CodingDroplets
+
+| Platform | Link |
+|----------|------|
+| 🌐 Website | https://codingdroplets.com/ |
+| 📺 YouTube | https://www.youtube.com/@CodingDroplets |
+| 🎁 Patreon | https://www.patreon.com/CodingDroplets |
+| ☕ Buy Me a Coffee | https://buymeacoffee.com/codingdroplets |
+| 💻 GitHub | http://github.com/codingdroplets/ |
+
+> **Want more samples like this?** [Support us on Patreon](https://www.patreon.com/CodingDroplets) or [buy us a coffee ☕](https://buymeacoffee.com/codingdroplets) — every bit helps keep the content coming!
